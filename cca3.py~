@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 
+#標準化する
+
 import sys
 import math
 import json
@@ -18,6 +20,7 @@ class CanCorr():
 
         self.jsonInput()
         self.dataAlig()
+        self.dataNorm()
         self.canoniCorr()
 
     #データのインプット(from json)
@@ -42,24 +45,37 @@ class CanCorr():
 
     #データの整頓(winsize分だけ並べる)
     def dataAlig(self):
-        self.adatas = []
+
+        self.X = []
+        self.Y = []
+
+        #self.adatas = []
         self.range = self.dataRow-self.winSize+1
 
-        for u in range(len(self.jdatas)):
-            adata = []
-            for i in range(self.range):
-                data = []
-                for w in range(self.winSize):
-                    #data.extend(self.jdatas[u][w+i])
-                    data.extend(self.scale(self.jdatas[u][w+i]))
-                self.adatas.append(data)
-          
-        '''
+        #for u in range(len(self.jdatas)):
+        #adata = []
+
+        for i in range(self.range):
+            data = []
+            for w in range(self.winSize):
+                #data.extend(self.jdatas[0][w+i])
+                data.extend(self.scale(self.jdatas[0][w+i]))
+            self.X.append(data)
+       
+        for i in range(self.range):
+            data = []
+            for w in range(self.winSize):
+                #data.extend(self.jdatas[1][w+i])
+                data.extend(self.scale(self.jdatas[1][w+i]))
+            self.Y.append(data)
+   
+
+    
         print "dataAlig:"
-        for i in range(len(self.adatas)):
-            print(self.adatas[i])
+        for i in range(len(self.X)):
+            print(self.X[i])
         print("---")
-        '''
+        
 
     #標準化
     def scale(self, arr):
@@ -68,14 +84,38 @@ class CanCorr():
         s = np.std(arr)
         if s != 0.0:
             dst = np.array([(arr[i] - m)/s for i in range(len(arr))])
+            #dst = np.array([(arr[i] - m) for i in range(len(arr))])
         #print("mean:"+str(np.mean(dst)))
         #print("std:"+str(np.std(dst)))
         return dst
 
+    
+    def dataNorm(self):
+
+        SXX = np.cov(self.X)
+        U, l, Ut = LA.svd(SXX, full_matrices=True) 
+        H = np.dot(LA.sqrtm(LA.inv(np.diag(l))),Ut)
+        print "H"
+        print H
+        self.nX = np.dot(H,self.X)
+        #print np.cov(self.nX)
+
+        SYY = np.cov(self.Y)
+        U, l, Ut = LA.svd(SYY, full_matrices=True) 
+        H = np.dot(LA.sqrtm(LA.inv(np.diag(l))),Ut)
+        print "H"
+        print H
+        self.nY = np.dot(H,self.Y)
+        #print np.cov(self.nY)
+
+
+
+
+        
     #正準相関
     def canoniCorr(self):
 
-        S = np.cov(self.adatas,  bias=1)
+        S = np.cov(self.nX, self.nY, bias=1)
 
         print "cov:"
         print S
@@ -98,6 +138,7 @@ class CanCorr():
         print SS
 
         mwx, s, B = LA.svd(SS, full_matrices=True)
+        #s, mwx = LA.eig(SS)
 
         print "mwx:"
         print mwx
@@ -110,6 +151,8 @@ class CanCorr():
 
         print "mwy:"
         print mwy
+
+        '''
         adatasm = np.matrix(self.adatas).T
         #print adatasm
         #fdata = adatasm[:,0:colSize/2]
@@ -165,6 +208,7 @@ class CanCorr():
         print frrat
         print grrat
 
+    '''
 
     def kCanoniCorr(self):
         pass

@@ -54,12 +54,12 @@ class CanCorr():
                     data.extend(self.scale(self.jdatas[u][w+i]))
                 self.adatas.append(data)
           
-        '''
+    
         print "dataAlig:"
         for i in range(len(self.adatas)):
             print(self.adatas[i])
         print("---")
-        '''
+        
 
     #標準化
     def scale(self, arr):
@@ -75,41 +75,49 @@ class CanCorr():
     #正準相関
     def canoniCorr(self):
 
-        S = np.cov(self.adatas,  bias=1)
+        R = np.corrcoef(self.adatas)
 
-        print "cov:"
-        print S
+        print "corr:"
+        print R
 
-        p,q = S.shape
-        p = p/2
-        SXX = S[:p,:p]
-        SYY = S[p:,p:]
-        SXY = S[:p,p:]
-        SYX = S[p:,:p]
-        SS = np.dot(SXY,SYX)
-        print "SXX:"
-        print SXX
-        print "SYY:"
-        print SYY
-        #print "SXY:"+str(SXY)
-        #print "SYX:"+str(SYX)
         
-        print "SxySyx:"
-        print SS
+        p,q = R.shape
+        p = p/2
+        R11 = R[:p,:p]
+        R22 = R[p:,p:]
+        R12 = R[:p,p:]
+        R21 = R[p:,:p]
 
-        mwx, s, B = LA.svd(SS, full_matrices=True)
+        print "R11:"
+        print R11
+        print "R12:"
+        print R12
+        print "R21:"
+        print R21
+        print "R22:"
+        print R22
+
+        M = np.dot(np.dot(np.dot(LA.inv(R11),R12),LA.inv(R22)),R21)
+
+        #固有値で解く！
+        s, mwx = LA.eig(M)
 
         print "mwx:"
         print mwx
+
         print "s:"
-        print np.diag(s)
+        print s
 
-        p,q = mwx.shape
+        print "s^2:"
+        print np.dot(s.T,s)
         
-        mwy = np.dot(np.dot(SYX,mwx),np.diag(1/np.sqrt(s)))
-
+        #mwy = np.dot(np.dot(R21,mwx),np.diag(1/np.sqrt(s)))
+        mwy = np.dot(np.dot(np.dot(LA.inv(R22),R21),np.diag(1/np.sqrt(s))),mwx)
+        #mwy = np.dot(LA.inv(R22),R21)
         print "mwy:"
         print mwy
+
+        '''
         adatasm = np.matrix(self.adatas).T
         #print adatasm
         #fdata = adatasm[:,0:colSize/2]
@@ -164,8 +172,8 @@ class CanCorr():
         print "radundancy ratio:"
         print frrat
         print grrat
-
-
+        '''
+        
     def kCanoniCorr(self):
         pass
 
