@@ -1,0 +1,199 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+#そもそものデータの取りかたが間違っていたので直す
+#標準化する
+
+
+import sys
+import math
+import json
+import numpy as np
+import scipy as sp
+from scipy import linalg as LA
+from scipy import stats as ST
+from scipy.spatial import distance as DIST
+#import sympy as SY
+from scipy import integrate
+
+#from sklearn.cross_decomposition import CCA
+
+class CanCorr():
+
+    def __init__(self):
+        self.winSize = 3
+
+        self.jsonInput()
+        self.canoniExec()
+        #self.canoniCorr()
+        #self.bartlettTest()
+
+    #データのインプット(from json)
+    def jsonInput(self):
+        f = open('testdata3.json', 'r');
+        jsonData = json.load(f)
+        #print json.dumps(jsonData, sort_keys = True, indent = 4)
+        f.close()
+
+        self.DATAS = []
+        #self.Y = []
+
+        for user in jsonData:
+            #angle
+            data = []
+            self.datasSize = len(user["datas"])
+
+            for j in range(self.datasSize):
+                data.append(user["datas"][j]["data"])
+
+            self.DATAS.append(data)
+
+        print "DATAS[0]:"
+        print self.DATAS[0]
+        print "DATAS[1]:"
+        print self.DATAS[1]
+
+
+    def canoniExec(self):
+        
+        dataRange = self.datasSize - self.winSize + 1
+        
+        for t1 in range(dataRange):
+            rho = 0
+            time1 = 0
+            time2 = 0
+            for t2 in range(dataRange):
+                USER1 = []
+                USER2 = []
+                for w in range(self.winSize):
+                    USER1.append(self.DATAS[0][t1+w])
+                    USER2.append(self.DATAS[1][t2+w])
+                
+
+
+                tmp_rho = self.canoniCorr(USER1, USER2)
+                print "tmp_rho"+str(tmp_rho)
+                """
+                if math.fabs(tmp_rho) > math.fabs(rho):
+                    rho = tmp_rho
+                """
+                time1 = t1
+                time2 = t2
+                
+                print "---"
+                print "user1 time:"+str(time1)+", user2 time:"+str(time2)
+                print "USER1:"+str(USER1)
+                print "USER2:"+str(USER2)
+            #print "USER1:"+str(USER1)
+            #print "USER2:"+str(USER2)
+            print "rho:"+str(rho)
+
+                
+
+    #正準相関
+    def canoniCorr(self, U1, U2):
+        tX = np.matrix(U1)
+        tY = np.matrix(U2)
+        print "tX:"
+        print tX
+        print "tY:"
+        print tY
+        self.n, self.p = tX.shape
+        self.n, self.q = tY.shape
+
+        sX = tX - tX.mean(axis=0) 
+        sY = tY - tY.mean(axis=0)
+
+        print "sX:"
+        print sX
+        print "sY:"
+        print sY
+        
+        #print np.cov(sX[:,0:1].T,sY[:,0:1].T)
+        
+        S = np.cov(sX.T, sY.T, bias = 1)
+
+        #print "S:"
+        #print S
+
+        SXX = S[:self.p,:self.p]
+        SYY = S[self.p:,self.p:]
+        SXY = S[:self.p,self.p:]
+        SYX = S[self.p:,:self.p]
+
+        if  not np.linalg.det(SXX) or not np.linalg.det(SYY) or not np.linalg.det(SXY):
+            print "det(SXX):"+str(np.linalg.det(SXX))+", det(SYY):"+str(np.linalg.det(SYY))+", det(SXY):"+str(np.linalg.det(SXY))
+            return 0
+        """
+        print "SXX:"
+        print SXX
+        print "SYY:"
+        print SYY
+        print "SXY:"
+        print SXY
+        """
+        sqx = LA.sqrtm(LA.inv(SXX)) # SXX^(-1/2)
+        sqy = LA.sqrtm(LA.inv(SYY)) # SYY^(-1/2)
+        M = np.dot(np.dot(sqx, SXY), sqy.T) # SXX^(-1/2) * SXY * SYY^(-T/2)
+        self.A, self.s, Bh = LA.svd(M, full_matrices=False)
+        self.B = Bh.T
+        
+        #self.U = np.dot(np.dot(self.A.T, sqx), sX.T).T
+        #self.V = np.dot(np.dot(self.B.T, sqy), sY.T).T
+        """
+        print "s:"
+        print self.s
+        print "A:"
+        print self.A
+        print "B:"
+        print self.B
+        """
+        at = np.dot(np.dot(self.A[:,0:1].T,SXX),self.A[:,0:1])
+        bt = np.dot(np.dot(self.B[:,0:1].T,SYY),self.B[:,0:1])
+        ab = np.dot(np.dot(self.A[:,0:1].T,SXY),self.B[:,0:1])
+        #print "atsxxa:"
+        #print at
+        #print "btsyyb:"
+        #print bt
+        #print "ab:"
+        #print ab
+        #print "rho:"
+        rho = ab/(np.sqrt(at)*np.sqrt(bt))
+
+        return rho 
+
+
+    def bartlettTest(self):
+
+        M = -(self.n-1/2*(self.p+self.q+3))
+        #print "M:"+str(M)
+        for i in range(len(self.s)):
+            #有意水準を求める
+            alf = 0.01
+            sig = sp.special.chdtri((self.p-i)*(self.q-i), alf)
+            print
+            test = 1
+            for j in range(len(self.s)-i):
+                test = test*(1-self.s[len(self.s)-j-1])
+            chi = M*math.log(test)
+
+            if chi > sig:
+                #print  "test["+str(i)+"]:"+str(chi) +" > sig("+str(alf)+"):"+str(sig)
+                ru = np.fabs(self.A[:,i:i+1])
+                rv = np.fabs(self.B[:,i:i+1])
+                #ru = self.A[:,i:i+1]
+                #rv = self.B[:,i:i+1]
+                #print "ru-max val:"+str(np.max(ru))+", arg:"+str(np.argmax(ru))
+                #print "rv-max val:"+str(np.max(rv))+", arg:"+str(np.argmax(rv))
+                #print "ru-max arg:"+str(np.argmax(ru))
+                #print "rv-max arg:"+str(np.argmax(rv))
+                #print "---"
+            else:
+                break
+        
+def main():
+    cancorr = CanCorr()
+        
+
+if __name__=='__main__':
+    main()
